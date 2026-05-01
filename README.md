@@ -13,7 +13,6 @@ Windows reserves certain port ranges for Hyper-V / WSL. The following host-port 
 
 | Service | Original | New | Reason |
 |---------|----------|-----|--------|
-| Prefect UI | 4200:4200 | 4400:4200 | Reserved range 4113–4212 |
 | Redis | 6379:6379 | 6550:6379 | Reserved range 6333–6432 |
 | Spark master (RPC) | 7077:7077 | 7600:7077 | Reserved range 7001–7100 |
 | Locust UI | 8089:8089 | 8190:8089 | Port in use by iCloudDrive |
@@ -62,9 +61,10 @@ Service URLs after startup:
 ### Steps:
 
 ```bash
-# 7. Exercise the model hot-reload API (confirm the Production model is loaded by the service)
-docker exec -w /app -it $CONTAINER python -c \
-  "import requests; print(requests.post('http://localhost:8000/admin/reload-models').json())"
+# Start infrastructure and API first (see Phase 0), then:
+
+# Trigger a hot-reload to pull the latest Production model from MLflow
+curl -s -X POST http://localhost:8000/admin/reload-models | python -m json.tool
 ```
 
 Expected response (example):
@@ -113,7 +113,7 @@ make pre-commit      # execute every pre-commit hook
 **Load testing:**
 
 ```bash
-make load-test              # start the Locust UI (http://localhost:8089)
+make load-test              # start the Locust UI (http://localhost:8190)
 make load-test-headless     # headless run (5 min, 100 users)
 ```
 
