@@ -79,32 +79,6 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - grafana_data:/var/lib/grafana
 
-  spark-master:
-    image: bitnamilegacy/spark:3.4.1
-    environment:
-      - SPARK_MODE=master
-      - SPARK_MASTER_PORT=7077
-      - SPARK_MASTER_WEBUI_PORT=8080
-    ports:
-      - "8080:8080"
-      - "7600:7077"
-    volumes:
-      - .:/app  # Mount the repository root inside the container at /app
-      - ./data:/data
-
-  spark-worker:
-    image: bitnamilegacy/spark:3.4.1
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2G
-      - SPARK_WORKER_CORES=2
-    depends_on:
-      - spark-master
-    volumes:
-      - .:/app  # Mount the repository root inside the container at /app
-      - ./data:/data
-  
   locust-master:
     image: python:3.11-slim
     ports:
@@ -112,18 +86,18 @@ services:
     environment:
       - LOCUST_MASTER=true
     depends_on:
-      - spark-master  # Ensure API is running
+      - kafka
     volumes:
       - .:/app
     working_dir: /app
     command: >
       bash -c "
         pip install locust requests &&
-        locust -f tests/locustfile.py 
-          --master 
-          --host=http://spark-master:8000 
-          --web 
-          --bind=0.0.0.0 
+        locust -f tests/locustfile.py
+          --master
+          --host=http://host.docker.internal:8000
+          --web
+          --bind=0.0.0.0
           --port=8089
       "
     networks:

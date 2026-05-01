@@ -4,17 +4,12 @@ Setup script for Real-Time Recommendation Engine
 Initializes databases, creates tables, and sets up the environment
 """
 
-import os
 import sys
-import time
 import subprocess
-import asyncio
 from pathlib import Path
 import yaml
 import psycopg2
 import redis
-from pyspark.sql import SparkSession
-from delta import configure_spark_with_delta_pip
 
 def print_step(step: str):
     """Print setup step"""
@@ -54,7 +49,7 @@ class SetupManager:
         print_step("Checking dependencies")
         
         required_packages = [
-            'pyspark', 'delta-spark', 'mlflow', 'kafka-python',
+            'mlflow', 'kafka-python',
             'fastapi', 'uvicorn', 'redis', 'psycopg2-binary'
         ]
         
@@ -82,7 +77,7 @@ class SetupManager:
         
         services = {
             'PostgreSQL': ('localhost', 5432),
-            'Redis': ('localhost', 6379),
+            'Redis': ('localhost', 6550),
             'Kafka': ('localhost', 9092)
         }
         
@@ -237,94 +232,6 @@ class SetupManager:
             print_error(f"Redis setup failed: {e}")
             return False
     
-    def setup_delta_lake(self):
-        """Setup Delta Lake tables"""
-        print_step("Setting up Delta Lake tables")
-        
-        try:
-            # Initialize Spark with Delta Lake
-            builder = SparkSession.builder.appName("Setup") \
-                .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-                .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
-            
-            spark = configure_spark_with_delta_pip(builder).getOrCreate()
-            
-            # Create Delta Lake directory
-            delta_path = "/tmp/delta-tables"
-            os.makedirs(delta_path, exist_ok=True)
-            
-            # Create sample data and tables
-            self.create_delta_tables(spark, delta_path)
-            
-            spark.stop()
-            print_success("Delta Lake tables setup completed")
-            return True
-            
-        except Exception as e:
-            print_error(f"Delta Lake setup failed: {e}")
-            return False
-    
-    def create_delta_tables(self, spark, delta_path: str):
-        """Create Delta Lake tables with sample data"""
-        import pandas as pd
-        from pyspark.sql.types import StructType, StructField, LongType, DoubleType, StringType, TimestampType
-        
-        # User interactions table
-        interactions_schema = StructType([
-            StructField("user_id", LongType(), True),
-            StructField("item_id", LongType(), True),
-            StructField("rating", DoubleType(), True),
-            StructField("interaction_type", StringType(), True),
-            StructField("timestamp", DoubleType(), True),
-            StructField("session_id", StringType(), True)
-        ])
-        
-        # Create sample interactions data
-        sample_data = []
-        for i in range(10000):
-            sample_data.append((
-                int(i % 1000),  # user_id
-                int(i % 500),   # item_id
-                float(3.0 + (i % 3)),  # rating
-                "rating",       # interaction_type
-                float(time.time()),  # timestamp
-                f"session_{i % 100}"  # session_id
-            ))
-        
-        interactions_df = spark.createDataFrame(sample_data, interactions_schema)
-        
-        # Write to Delta Lake
-        interactions_df.write.format("delta") \
-            .mode("overwrite") \
-            .save(f"{delta_path}/interactions")
-        
-        print("  ✓ Created interactions table")
-        
-        # User profiles table
-        user_profiles_schema = StructType([
-            StructField("user_id", LongType(), True),
-            StructField("avg_rating", DoubleType(), True),
-            StructField("interaction_count", LongType(), True),
-            StructField("last_interaction", DoubleType(), True)
-        ])
-        
-        # Create sample user profiles
-        user_data = []
-        for i in range(1000):
-            user_data.append((
-                int(i),
-                float(3.5 + (i % 2) * 0.5),
-                int(10 + i % 50),
-                float(time.time())
-            ))
-        
-        user_profiles_df = spark.createDataFrame(user_data, user_profiles_schema)
-        user_profiles_df.write.format("delta") \
-            .mode("overwrite") \
-            .save(f"{delta_path}/user_profiles")
-        
-        print("  ✓ Created user profiles table")
-    
     def setup_kafka_topics(self):
         """Setup Kafka topics"""
         print_step("Setting up Kafka topics")
@@ -333,7 +240,6 @@ class SetupManager:
             'user_interactions',
             'recommendations_served',
             'model_updates',
-            'ab_test_events'
         ]
         
         try:
@@ -405,8 +311,6 @@ class SetupManager:
             "models",
             "artifacts",
             "checkpoints",
-            "/tmp/delta-tables",
-            "/tmp/spark-checkpoint",
             "/tmp/mlflow-artifacts"
         ]
         
@@ -428,7 +332,6 @@ class SetupManager:
             ("Setup PostgreSQL", self.setup_postgresql),
             ("Setup Redis", self.setup_redis),
             ("Setup Kafka topics", self.setup_kafka_topics),
-            ("Setup Delta Lake", self.setup_delta_lake),
             ("Setup MLflow", self.setup_mlflow)
         ]
         
