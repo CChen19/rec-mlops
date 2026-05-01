@@ -1,6 +1,6 @@
-# Real-Time Recommendation Engine
+# Recommendation MLOps System
 
-A production-style MLOps project: FastAPI recommendation service with SVD + NMF matrix factorization, MLflow model registry, Redis caching, Kafka streaming, and full observability via Prometheus + Grafana.
+A production-style MLOps pipeline for recommendation serving: FastAPI model serving, SVD + NMF recommenders, MLflow model registry, Redis caching, Kafka interaction streaming, and full observability via Prometheus + Grafana.
 
 ![Grafana Dashboard](images/grafana_dashboard.png)
 
