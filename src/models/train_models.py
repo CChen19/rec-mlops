@@ -13,9 +13,7 @@ import numpy as np
 import pandas as pd
 import structlog
 import yaml
-from delta import configure_spark_with_delta_pip
-from mlflow.models import infer_signature  # <--- Added import
-from pyspark.sql import SparkSession
+from mlflow.models import infer_signature
 from sklearn.decomposition import NMF, TruncatedSVD
 
 logger = structlog.get_logger()
@@ -36,17 +34,6 @@ class ModelTrainer:
                 }
             }
 
-        builder = (
-            SparkSession.builder.appName("ModelTraining")
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            .config(
-                "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
-            )
-            .config("spark.jars.ivy", "/tmp/.ivy2")
-        )
-
-        self.spark = configure_spark_with_delta_pip(builder).getOrCreate()
-
         tracking_uri = os.getenv("MLFLOW_TRACKING_URI", self.config["mlflow"]["tracking_uri"])
         mlflow.set_tracking_uri(tracking_uri)
         mlflow.set_experiment(self.config["mlflow"]["experiment_name"])
@@ -63,29 +50,14 @@ class ModelTrainer:
 
     def load_training_data(self) -> Tuple[pd.DataFrame, np.ndarray]:
         try:
-            table_path = "/tmp/delta-tables/interactions"
-            logger.info(f"Reading Delta table from: {table_path}")
-
-            interactions_df = self.spark.read.format("delta").load(table_path)
-            interactions_pd = interactions_df.toPandas()
-
-            # Deduplicate records
-            interactions_pd = interactions_pd.drop_duplicates(
-                subset=["user_id", "item_id"], keep="last"
-            )
-
-            logger.info(f"Loaded {len(interactions_pd)} interactions")
-
-            user_item_matrix = interactions_pd.pivot(
-                index="user_id", columns="item_id", values="rating"
-            ).fillna(0)
-
-            logger.info(f"User-item matrix shape: {user_item_matrix.shape}")
-            return interactions_pd, user_item_matrix.values
-
+            df = pd.read_csv("data/sample_interactions.csv")
+            df = df.drop_duplicates(subset=["user_id", "item_id"], keep="last")
+            logger.info(f"Loaded {len(df)} interactions from CSV")
+            matrix = df.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
+            logger.info(f"User-item matrix shape: {matrix.shape}")
+            return df, matrix.values
         except Exception as e:
-            logger.warning(f"Could not load data from Delta Lake: {e}")
-            logger.info("Falling back to synthetic data generation")
+            logger.warning(f"Could not load CSV data: {e}")
             return self._generate_synthetic_data()
 
     def _generate_synthetic_data(self) -> Tuple[pd.DataFrame, np.ndarray]:

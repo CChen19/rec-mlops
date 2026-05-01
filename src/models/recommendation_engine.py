@@ -3,8 +3,6 @@ Advanced Recommendation Engine with Matrix Factorization
 Implements SVD, NMF, and hybrid algorithms with high-performance optimizations
 """
 
-import os
-import tempfile
 import time
 from typing import Any, Dict, List
 
@@ -12,8 +10,6 @@ import mlflow
 import numpy as np
 import pandas as pd
 import structlog
-from delta import configure_spark_with_delta_pip  # <--- Key fix: import the configuration helper
-from pyspark.sql import SparkSession
 from sklearn.decomposition import NMF, TruncatedSVD
 from sklearn.preprocessing import MinMaxScaler
 
@@ -41,22 +37,6 @@ class RecommendationEngine:
         self.user_features = None
         self.feature_scaler = MinMaxScaler()
         self.kafka_producer = None
-
-        # Spark/Delta Lake initialization — optional; API degrades to sample data if unavailable
-        self.spark = None
-        try:
-            builder = (
-                SparkSession.builder.appName(config["streaming"]["spark"]["app_name"])
-                .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-                .config(
-                    "spark.sql.catalog.spark_catalog",
-                    "org.apache.spark.sql.delta.catalog.DeltaCatalog",
-                )
-                .config("spark.jars.ivy", os.path.join(tempfile.gettempdir(), ".ivy2").replace("\\", "/"))
-            )
-            self.spark = configure_spark_with_delta_pip(builder).getOrCreate()
-        except Exception as spark_exc:
-            logger.warning(f"Spark unavailable, falling back to sample data: {spark_exc}")
 
         # MLflow setup
         mlflow.set_tracking_uri(config["mlflow"]["tracking_uri"])
@@ -158,27 +138,14 @@ class RecommendationEngine:
             return nmf
 
     async def _load_interaction_data(self):
-        """Load user-item interaction data from Delta Lake"""
+        """Load user-item interaction data from CSV"""
         try:
-            # Read from Delta Lake table
-            # Use absolute path that matches init script
-            table_path = "/tmp/delta-tables/interactions"
-            interactions_df = self.spark.read.format("delta").load(table_path)
-
-            interactions_pd = interactions_df.toPandas()
-
-            # Deduplicate
-            interactions_pd = interactions_pd.drop_duplicates(
-                subset=["user_id", "item_id"], keep="last"
-            )
-
-            # Create user-item matrix
-            matrix = interactions_pd.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
+            df = pd.read_csv("data/sample_interactions.csv")
+            df = df.drop_duplicates(subset=["user_id", "item_id"], keep="last")
+            matrix = df.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
             self.user_item_matrix = matrix.values
             self.last_stats_refresh = time.time()
-
             logger.info(f"Loaded interaction matrix: {self.user_item_matrix.shape}")
-
         except Exception as e:
             logger.warning(f"Could not load interaction data: {e}")
             self._create_sample_data()
