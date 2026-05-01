@@ -40,7 +40,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6550:6379"
     volumes:
       - redis_data:/data
 
@@ -87,7 +87,7 @@ services:
       - SPARK_MASTER_WEBUI_PORT=8080
     ports:
       - "8080:8080"
-      - "7077:7077"
+      - "7600:7077"
     volumes:
       - .:/app  # Mount the repository root inside the container at /app
       - ./data:/data
@@ -108,7 +108,7 @@ services:
   prefect:
     image: prefecthq/prefect:2-latest  # Use 3-latest if your requirements.txt supports it
     ports:
-      - "4200:4200"
+      - "4400:4200"
     command: >
       sh -c "
         prefect server start --host 0.0.0.0 --port 4200
@@ -116,8 +116,8 @@ services:
     environment:
       - PREFECT_SERVER_API_HOST=0.0.0.0
       - PREFECT_SERVER_API_PORT=4200
-      - PREFECT_UI_URL=http://localhost:4200/api
-      - PREFECT_API_URL=http://localhost:4200/api
+      - PREFECT_UI_URL=http://localhost:4400/api
+      - PREFECT_API_URL=http://localhost:4400/api
     volumes:
       - prefect_data:/root/.prefect
     restart: always
@@ -125,7 +125,7 @@ services:
   locust-master:
     image: python:3.11-slim
     ports:
-      - "8089:8089"  # Locust web UI
+      - "8190:8089"  # Locust web UI
     environment:
       - LOCUST_MASTER=true
     depends_on:

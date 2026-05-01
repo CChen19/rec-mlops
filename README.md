@@ -3,6 +3,61 @@
 Run the following commands **exactly in order** (each step has been verified).
 
 
+## Phase 0: Local Development Setup (Windows)
+
+This section documents fixes required to run the stack on Windows. All changes live on the `refactor/slim-down` branch.
+
+### Port conflicts (Windows reserved ranges)
+
+Windows reserves certain port ranges for Hyper-V / WSL. The following host-port mappings were changed in `docker-compose.yml`:
+
+| Service | Original | New | Reason |
+|---------|----------|-----|--------|
+| Prefect UI | 4200:4200 | 4400:4200 | Reserved range 4113–4212 |
+| Redis | 6379:6379 | 6550:6379 | Reserved range 6333–6432 |
+| Spark master (RPC) | 7077:7077 | 7600:7077 | Reserved range 7001–7100 |
+| Locust UI | 8089:8089 | 8190:8089 | Port in use by iCloudDrive |
+
+### Spark / Java compatibility
+
+PySpark 3.4 requires Java 8 or 11. Java 17+ (and 21, which ships with recent Windows JDKs) removed the `DirectByteBuffer` constructor that Spark relies on, causing a hard crash at startup.
+
+**Fix**: The `RecommendationEngine.__init__` Spark session creation is now wrapped in a `try/except`. If the JVM cannot start, `self.spark = None` and the engine falls back to in-memory sample data automatically. The actual SVD/NMF recommendation logic does not use Spark at runtime.
+
+Additionally, `spark.jars.ivy` was hardcoded to `/tmp/.ivy2` (a Unix path). It now uses `tempfile.gettempdir()` so it resolves to a valid absolute path on Windows.
+
+### MLflow tracking URI
+
+`config/config.yaml` previously used `http://mlflow:5000` (Docker-internal hostname). Changed to `http://localhost:5000` for local development.
+
+### Starting the stack locally
+
+```bash
+# 1. Start all infrastructure services
+docker compose up -d
+
+# 2. Start the recommendation API (using the rec_mlops conda env)
+conda activate rec_mlops
+python -m uvicorn src.api.recommendation_api:app --host 0.0.0.0 --port 8000
+
+# 3. Verify
+curl http://localhost:8000/health
+# Expected: {"status":"healthy","active_models":[...],"uptime_seconds":...}
+```
+
+Service URLs after startup:
+
+| Service | URL |
+|---------|-----|
+| Recommendation API | http://localhost:8000 |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| MLflow | http://localhost:5000 |
+| Prefect UI | http://localhost:4400 |
+| Spark Master UI | http://localhost:8080 |
+| Locust UI | http://localhost:8190 |
+
+
 ## Phase 1: Orchestration with Prefect
 
 ### Steps:

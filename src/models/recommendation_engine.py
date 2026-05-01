@@ -3,6 +3,8 @@ Advanced Recommendation Engine with Matrix Factorization
 Implements SVD, NMF, and hybrid algorithms with high-performance optimizations
 """
 
+import os
+import tempfile
 import time
 from typing import Any, Dict, List
 
@@ -40,21 +42,21 @@ class RecommendationEngine:
         self.feature_scaler = MinMaxScaler()
         self.kafka_producer = None
 
-        # ---------------------------------------------------------
-        # Core fix: configure Spark so the container can use Delta Lake
-        # ---------------------------------------------------------
-        builder = (
-            SparkSession.builder.appName(config["streaming"]["spark"]["app_name"])
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            .config(
-                "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+        # Spark/Delta Lake initialization — optional; API degrades to sample data if unavailable
+        self.spark = None
+        try:
+            builder = (
+                SparkSession.builder.appName(config["streaming"]["spark"]["app_name"])
+                .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+                .config(
+                    "spark.sql.catalog.spark_catalog",
+                    "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+                )
+                .config("spark.jars.ivy", os.path.join(tempfile.gettempdir(), ".ivy2").replace("\\", "/"))
             )
-            .config("spark.jars.ivy", "/tmp/.ivy2")
-        )  # <--- Key fix: point Ivy to a writable cache directory
-
-        # Automatically configure the JAR dependencies
-        self.spark = configure_spark_with_delta_pip(builder).getOrCreate()
-        # ---------------------------------------------------------
+            self.spark = configure_spark_with_delta_pip(builder).getOrCreate()
+        except Exception as spark_exc:
+            logger.warning(f"Spark unavailable, falling back to sample data: {spark_exc}")
 
         # MLflow setup
         mlflow.set_tracking_uri(config["mlflow"]["tracking_uri"])
