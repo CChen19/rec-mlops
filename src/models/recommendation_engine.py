@@ -93,8 +93,8 @@ class RecommendationEngine:
             return self._train_svd_model()
 
     def _train_svd_model(self) -> TruncatedSVD:
-        """Train SVD model (Fallback)"""
-        with mlflow.start_run(run_name="svd_training_fallback"):
+        """Train SVD model (Fallback) and register as Production."""
+        with mlflow.start_run(run_name="svd_training_fallback") as run:
             params = self.config["models"].get("svd", {})
             sample_matrix = np.random.rand(20, 50)
             n_components = min(params.get("factors", 10), sample_matrix.shape[1] - 1)
@@ -105,6 +105,7 @@ class RecommendationEngine:
             mlflow.log_params(params)
             mlflow.log_metric("training_time_ms", duration_ms)
             mlflow.sklearn.log_model(svd, "svd_model")
+            self._promote_to_production(run.info.run_id, "svd_model", "Recommendation_SVD")
             return svd
 
     def _load_or_train_nmf(self) -> NMF:
@@ -123,8 +124,8 @@ class RecommendationEngine:
             return self._train_nmf_model()
 
     def _train_nmf_model(self) -> NMF:
-        """Train NMF model (Fallback)"""
-        with mlflow.start_run(run_name="nmf_training_fallback"):
+        """Train NMF model (Fallback) and register as Production."""
+        with mlflow.start_run(run_name="nmf_training_fallback") as run:
             params = self.config["models"].get("nmf", {})
             sample_matrix = np.abs(np.random.rand(20, 50))
             n_components = min(params.get("factors", 10), sample_matrix.shape[1])
@@ -136,7 +137,24 @@ class RecommendationEngine:
             mlflow.log_params(params)
             mlflow.log_metric("training_time_ms", duration_ms)
             mlflow.sklearn.log_model(nmf, "nmf_model")
+            self._promote_to_production(run.info.run_id, "nmf_model", "Recommendation_NMF")
             return nmf
+
+    def _promote_to_production(self, run_id: str, artifact_path: str, model_name: str) -> None:
+        """Register a run artifact as the Production version in the MLflow Model Registry."""
+        try:
+            client = mlflow.tracking.MlflowClient()
+            model_uri = f"runs:/{run_id}/{artifact_path}"
+            mv = mlflow.register_model(model_uri, model_name)
+            client.transition_model_version_stage(
+                name=model_name,
+                version=mv.version,
+                stage="Production",
+                archive_existing_versions=True,
+            )
+            logger.info(f"Registered {model_name} v{mv.version} as Production")
+        except Exception as e:
+            logger.warning(f"Could not register {model_name} in MLflow Registry: {e}")
 
     async def _load_interaction_data(self):
         """Load user-item interaction data from CSV"""
