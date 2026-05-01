@@ -24,11 +24,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "performance: Mark test as performance test")
 
 
-# Mock heavy dependencies to avoid import errors
-sys.modules["pyspark"] = MagicMock()
-sys.modules["pyspark.sql"] = MagicMock()
-sys.modules["pyspark.sql.functions"] = MagicMock()
-sys.modules["delta"] = MagicMock()
+# Mock heavy dependencies to avoid import errors in unit tests
 sys.modules["mlflow"] = MagicMock()
 sys.modules["mlflow.tracking"] = MagicMock()
 sys.modules["redis"] = MagicMock()
@@ -139,20 +135,6 @@ def mock_kafka_config():
             "recommendations": "test_recommendations",
         },
     }
-
-
-@pytest.fixture
-def sample_ab_test_data():
-    """Sample A/B test data"""
-    np.random.seed(42)
-
-    # Control group (lower CTR)
-    control_data = np.random.binomial(1, 0.025, 1000)  # 2.5% CTR
-
-    # Treatment group (higher CTR - 23% lift)
-    treatment_data = np.random.binomial(1, 0.025 * 1.23, 1000)  # ~3.1% CTR
-
-    return control_data, treatment_data
 
 
 @pytest.fixture

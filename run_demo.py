@@ -56,7 +56,7 @@ class RecommendationEngineDemo:
     async def run_complete_demo(self):
         """Run complete demonstration"""
         print_header("REAL-TIME RECOMMENDATION ENGINE DEMO")
-        print("Built with PySpark, Delta Lake, MLflow, and Kafka")
+        print("Built with scikit-learn, MLflow, FastAPI, and Kafka")
         print("Achieving sub-100ms latency with advanced matrix factorization")
         
         # Check API health

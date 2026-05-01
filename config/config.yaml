@@ -45,14 +45,6 @@ streaming:
       item_updates: "item_updates"
       recommendations: "recommendations"
     
-  spark:
-    app_name: "RecommendationEngine"
-    batch_interval: "10 seconds"
-    checkpoint_location: "/tmp/spark-checkpoint"
-    
-  delta_lake:
-    warehouse_path: "/tmp/delta-warehouse"
-    
 # API configuration
 api:
   host: "0.0.0.0"
@@ -98,15 +90,6 @@ evaluation:
   test_size: 0.2
   random_state: 42
 
-# A/B Testing
-ab_testing:
-  default_traffic_split: 0.5
-  min_sample_size: 1000
-  significance_level: 0.05
-  statistical_power: 0.95
-  min_effect_size: 0.02
-  max_experiment_duration: 30  # days
-
 # Monitoring
 monitoring:
   prometheus:
@@ -119,12 +102,6 @@ monitoring:
     
 # Performance tuning
 performance:
-  spark:
-    executor_memory: "2g"
-    executor_cores: 2
-    driver_memory: "1g"
-    max_result_size: "1g"
-    
   api:
     max_workers: 10
     timeout: 30
