@@ -20,15 +20,16 @@ from ..utils.cache import CacheManager
 # Attempt to import Prometheus metrics; fall back gracefully if unavailable
 try:
     from ..utils.prometheus_metrics import (
+        PROMETHEUS_CONTENT_TYPE,
+        get_metrics,
+        inflight_requests,
+        models_loaded,
+        recommendation_batch_size,
+        recommendations_total,
         request_count,
         response_time,
-        recommendations_total,
-        models_loaded,
-        inflight_requests,
-        recommendation_batch_size,
-        get_metrics,
-        PROMETHEUS_CONTENT_TYPE,
     )
+
     HAS_PROMETHEUS = True
 except ImportError:
     HAS_PROMETHEUS = False
@@ -175,9 +176,7 @@ def _record_request_metrics(
             status=outcome,
         ).inc()
         if recommendation_count is not None and recommendation_count > 0:
-            recommendation_batch_size.labels(algorithm=algorithm).observe(
-                recommendation_count
-            )
+            recommendation_batch_size.labels(algorithm=algorithm).observe(recommendation_count)
 
 
 @app.get("/metrics")
@@ -347,7 +346,8 @@ async def get_user_recommendations(
 
 @app.post("/interactions")
 async def record_interaction(
-    interaction: InteractionRequest, engine: RecommendationEngine = Depends(get_recommendation_engine)
+    interaction: InteractionRequest,
+    engine: RecommendationEngine = Depends(get_recommendation_engine),
 ):
     try:
         await engine.record_interaction(interaction.dict())

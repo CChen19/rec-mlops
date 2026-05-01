@@ -11,7 +11,7 @@ import pytest
 # Mock Redis before importing cache
 sys.modules["redis"] = MagicMock()
 
-from src.utils.cache import CacheManager, JSON_PREFIX  # noqa: E402
+from src.utils.cache import JSON_PREFIX, CacheManager  # noqa: E402
 
 
 @pytest.fixture
@@ -20,7 +20,9 @@ def cache_builder():
 
     def _build(**options):
         mock_client = MagicMock()
-        manager = CacheManager({"host": "localhost", "port": 6379, "db": 0}, client=mock_client, **options)
+        manager = CacheManager(
+            {"host": "localhost", "port": 6379, "db": 0}, client=mock_client, **options
+        )
         return manager, mock_client
 
     return _build

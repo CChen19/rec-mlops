@@ -18,6 +18,7 @@ from ..utils.metrics import calculate_coverage, calculate_hit_rate, calculate_ma
 
 def load_kafka_producer():
     from ..streaming.kafka_producer import KafkaProducer
+
     return KafkaProducer
 
 
@@ -167,7 +168,9 @@ class RecommendationEngine:
             subset=["user_id", "item_id"], keep="last"
         )
 
-        matrix = interactions_df.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
+        matrix = interactions_df.pivot(index="user_id", columns="item_id", values="rating").fillna(
+            0
+        )
         self.user_item_matrix = matrix.values
         self.last_stats_refresh = time.time()
         logger.info("Created sample interaction matrix for demonstration")

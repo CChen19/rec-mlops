@@ -14,16 +14,7 @@ Windows reserves certain port ranges for Hyper-V / WSL. The following host-port 
 | Service | Original | New | Reason |
 |---------|----------|-----|--------|
 | Redis | 6379:6379 | 6550:6379 | Reserved range 6333–6432 |
-| Spark master (RPC) | 7077:7077 | 7600:7077 | Reserved range 7001–7100 |
 | Locust UI | 8089:8089 | 8190:8089 | Port in use by iCloudDrive |
-
-### Spark / Java compatibility
-
-PySpark 3.4 requires Java 8 or 11. Java 17+ (and 21, which ships with recent Windows JDKs) removed the `DirectByteBuffer` constructor that Spark relies on, causing a hard crash at startup.
-
-**Fix**: The `RecommendationEngine.__init__` Spark session creation is now wrapped in a `try/except`. If the JVM cannot start, `self.spark = None` and the engine falls back to in-memory sample data automatically. The actual SVD/NMF recommendation logic does not use Spark at runtime.
-
-Additionally, `spark.jars.ivy` was hardcoded to `/tmp/.ivy2` (a Unix path). It now uses `tempfile.gettempdir()` so it resolves to a valid absolute path on Windows.
 
 ### MLflow tracking URI
 
@@ -41,7 +32,7 @@ python -m uvicorn src.api.recommendation_api:app --host 0.0.0.0 --port 8000
 
 # 3. Verify
 curl http://localhost:8000/health
-# Expected: {"status":"healthy","active_models":[...],"uptime_seconds":...}
+# Expected: {"status":"healthy","active_models":["svd","nmf"],"uptime_seconds":...}
 ```
 
 Service URLs after startup:
@@ -52,18 +43,14 @@ Service URLs after startup:
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
 | MLflow | http://localhost:5000 |
-| Spark Master UI | http://localhost:8080 |
 | Locust UI | http://localhost:8190 |
 
 
-## Phase 1: Model Registry & Quality Gates
+## Phase 1: Model Registry & Hot Reload
 
-### Steps:
+With the API running, trigger a hot-reload to pull the latest Production model from MLflow without restarting:
 
 ```bash
-# Start infrastructure and API first (see Phase 0), then:
-
-# Trigger a hot-reload to pull the latest Production model from MLflow
 curl -s -X POST http://localhost:8000/admin/reload-models | python -m json.tool
 ```
 
@@ -74,10 +61,9 @@ Expected response (example):
   "status": "success",
   "message": "Models reloaded from Production",
   "current_state": {
-    "Recommendation_SVD": {
-      "version": "1",
-      "stage": "Production",
-      "loaded_at": "2025-12-04T08:88:88.888888"
+    "models_loaded": ["svd", "nmf"],
+    "model_metrics": {
+      "svd": {"rmse": 0.84, "ndcg_10": 0.78, "map_10": 0.73}
     }
   }
 }
@@ -176,6 +162,3 @@ git commit -m "feat: update recommendation engine"
 ```bash
 git push origin main
 ```
-
-
-

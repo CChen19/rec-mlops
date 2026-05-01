@@ -86,7 +86,9 @@ class ModelTrainer:
         logger.info("Training SVD model...")
         with mlflow.start_run(run_name="svd_training") as run:
             svd = TruncatedSVD(n_components=10, random_state=42)
-            transformed_data = svd.fit_transform(user_item_matrix)  # Output used to build the signature
+            transformed_data = svd.fit_transform(
+                user_item_matrix
+            )  # Output used to build the signature
 
             metrics = {"rmse": 0.85, "r2_score": 0.88}
             mlflow.log_metrics(metrics)
