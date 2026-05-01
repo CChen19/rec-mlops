@@ -23,9 +23,6 @@ services:
       - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
       - ALLOW_PLAINTEXT_LISTENER=yes
-    volumes:
-      - kafka_data:/bitnami/kafka
-
   postgres:
     image: postgres:15
     environment:
@@ -107,4 +104,3 @@ volumes:
   postgres_data:
   redis_data:
   grafana_data:
-  kafka_data:
