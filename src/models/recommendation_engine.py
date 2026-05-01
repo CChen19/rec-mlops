@@ -95,9 +95,9 @@ class RecommendationEngine:
         """Train SVD model (Fallback)"""
         with mlflow.start_run(run_name="svd_training_fallback"):
             params = self.config["models"].get("svd", {})
-            n_components = params.get("factors", 10)
-            svd = TruncatedSVD(n_components=n_components, random_state=42)
             sample_matrix = np.random.rand(20, 50)
+            n_components = min(params.get("factors", 10), sample_matrix.shape[1] - 1)
+            svd = TruncatedSVD(n_components=n_components, random_state=42)
             start = time.time()
             svd.fit(sample_matrix)
             duration_ms = (time.time() - start) * 1000
@@ -125,10 +125,10 @@ class RecommendationEngine:
         """Train NMF model (Fallback)"""
         with mlflow.start_run(run_name="nmf_training_fallback"):
             params = self.config["models"].get("nmf", {})
-            n_components = params.get("factors", 10)
+            sample_matrix = np.abs(np.random.rand(20, 50))
+            n_components = min(params.get("factors", 10), sample_matrix.shape[1])
             max_iter = params.get("max_iter", 50)
             nmf = NMF(n_components=n_components, init="random", random_state=42, max_iter=max_iter)
-            sample_matrix = np.abs(np.random.rand(20, 50))
             start = time.time()
             nmf.fit(sample_matrix)
             duration_ms = (time.time() - start) * 1000
