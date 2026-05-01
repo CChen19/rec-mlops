@@ -8,28 +8,19 @@ All significant changes to this project are documented here.
 ### 🚀 Major Features
 Converted the standalone recommendation scripts into a fully containerized, orchestrated, production-grade MLOps platform.
 
-- **Orchestration layer**: Integrated **Prefect** to manage model-training workflows, providing visualization and automatic retries.
 - **Model registry**: Added **MLflow Model Registry** so we can version-control models and manage their lifecycle across Staging and Production stages.
 - **Model CI/CD**: Implemented metric-based "auto-promotion" plus API hot reload, enabling zero-downtime updates.
 - **Containerization**: Moved Spark, the API, and MLflow tracking into Docker containers to eliminate local dependency drift.
 
 ### 🏗️ Infrastructure Changes
 - **`docker-compose.yml`**:
-    - Added a `prefect` service for workflow orchestration.
     - Swapped the `kafka` and `zookeeper` images to `bitnamilegacy` to recover from upstream pull-policy changes.
     - Configured `mlflow` with artifact serving (proxy mode) bound to `0.0.0.0`, fixing cross-container permissions and access issues.
     - Updated every volume mount so the repo root maps to `/app` inside each container for instant code sync.
 
 ### 💻 Code Modifications
 
-#### 1. Pipeline & Orchestration
-- **New `src/pipelines/tasks.py`**:
-    - Broke the original training logic into atomic Prefect tasks: `task_load_data`, `task_train_svd`, and `task_train_nmf`.
-    - Added `task_register_and_promote`, which promotes a model only when its RMSE beats the current Production version.
-- **New `src/pipelines/retraining_flow.py`**:
-    - Describes the end-to-end flow: load data → train in parallel → evaluate → register → promote.
-
-#### 2. Model Training (`src/models/train_models.py`)
+#### 1. Model Training (`src/models/train_models.py`)
 - **Delta Lake support**: Introduced `configure_spark_with_delta_pip` and set the Ivy cache to `/tmp/.ivy2`, solving the container `ClassNotFoundException` for Delta dependencies.
 - **Better data handling**: Added `drop_duplicates` during loading to avoid pivot failures caused by duplicate samples.
 - **MLflow integration**:

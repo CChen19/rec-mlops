@@ -53,77 +53,11 @@ Service URLs after startup:
 | Grafana | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
 | MLflow | http://localhost:5000 |
-| Prefect UI | http://localhost:4400 |
 | Spark Master UI | http://localhost:8080 |
 | Locust UI | http://localhost:8190 |
 
 
-## Phase 1: Orchestration with Prefect
-
-### Steps:
-
-1. **Start every service**
-
-    ```bash
-    # 1. Start every service
-    docker-compose up -d
-    ```
-
-2. **Fetch the spark-master container ID**
-
-    ```bash
-    # 2. Fetch the spark-master container ID
-    CONTAINER=$(docker-compose ps -q spark-master)
-    ```
-
-3. **Install the base dependencies inside the container**
-
-    ```bash
-    # 3. Install the base dependencies inside the container
-    docker exec -it $CONTAINER pip install \
-        prefect \
-        mlflow \
-        structlog \
-        pandas \
-        scikit-learn \
-        pyyaml \
-        delta-spark==2.4.0 \
-        kafka-python==2.0.2
-    ```
-
-4. **Install Prefect 2.x (<3.0 is required)**
-
-    ```bash
-    # 4. Install Prefect 2.x (<3.0 is required)
-    docker exec -it $CONTAINER pip install "prefect>=2.0.0,<3.0.0"
-    ```
-
-5. **Initialize the Delta Lake tables**
-
-    ```bash
-    # 5. Initialize the Delta Lake tables (create the required tables in MinIO)
-    docker exec -w /app -it $CONTAINER python src/init_delta_tables.py
-    ```
-
-6. **Run the model retraining flow (critical step)**
-
-    ```bash
-    # 6. Run the model retraining flow (critical step)
-    docker exec \
-      -e PREFECT_HOME=/tmp/.prefect \
-      -e MLFLOW_TRACKING_URI=http://mlflow:5000 \
-      -e PREFECT_API_URL=http://prefect:4200/api \
-      -w /app \
-      -it $CONTAINER python -m src.pipelines.retraining_flow
-    ```
-
-### Expected Results
-
-- Prefect UI (http://localhost:4200) shows the flow run in green (success)
-- MLflow UI (http://localhost:5000) -> Models page lists `Recommendation_SVD` with the latest version promoted to `Production`
-
-
-## Phase 2: Model Registry & Quality Gates
+## Phase 1: Model Registry & Quality Gates
 
 ### Steps:
 

@@ -105,23 +105,6 @@ services:
       - .:/app  # Mount the repository root inside the container at /app
       - ./data:/data
   
-  prefect:
-    image: prefecthq/prefect:2-latest  # Use 3-latest if your requirements.txt supports it
-    ports:
-      - "4400:4200"
-    command: >
-      sh -c "
-        prefect server start --host 0.0.0.0 --port 4200
-      "
-    environment:
-      - PREFECT_SERVER_API_HOST=0.0.0.0
-      - PREFECT_SERVER_API_PORT=4200
-      - PREFECT_UI_URL=http://localhost:4400/api
-      - PREFECT_API_URL=http://localhost:4400/api
-    volumes:
-      - prefect_data:/root/.prefect
-    restart: always
-
   locust-master:
     image: python:3.11-slim
     ports:
@@ -150,5 +133,4 @@ volumes:
   postgres_data:
   redis_data:
   grafana_data:
-  prefect_data:
   kafka_data:
