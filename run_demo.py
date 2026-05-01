@@ -56,7 +56,7 @@ class RecommendationEngineDemo:
     async def run_complete_demo(self):
         """Run complete demonstration"""
         print_header("REAL-TIME RECOMMENDATION ENGINE DEMO")
-        print("Built with PySpark, Delta Lake, MLflow, and Kafka")
+        print("Built with scikit-learn, MLflow, FastAPI, and Kafka")
         print("Achieving sub-100ms latency with advanced matrix factorization")
         
         # Check API health
@@ -68,7 +68,6 @@ class RecommendationEngineDemo:
         # Run demonstration steps
         await self.demo_recommendations()
         await self.demo_real_time_interactions()
-        await self.demo_ab_testing()
         await self.demo_metrics_and_monitoring()
         await self.demo_performance_benchmarks()
         
@@ -161,54 +160,6 @@ class RecommendationEngineDemo:
                 print_error(f"Interaction recording failed: {e}")
             
             await asyncio.sleep(0.2)
-    
-    async def demo_ab_testing(self):
-        """Demonstrate A/B testing framework"""
-        print_header("A/B TESTING FRAMEWORK DEMO")
-        
-        try:
-            # Import here to avoid circular imports in demo
-            from src.experiments.ab_testing import ABTestFramework
-            
-            print("Initializing A/B testing framework...")
-            ab_framework = ABTestFramework()
-            
-            # Create experiment
-            experiment_id = ab_framework.create_experiment(
-                name="svd_vs_nmf_demo",
-                description="Demonstrate A/B testing between SVD and NMF algorithms",
-                control_algorithm="svd",
-                treatment_algorithm="nmf",
-                metric="ctr",
-                min_effect_size=0.02,
-                statistical_power=0.95
-            )
-            
-            print_success(f"Created experiment: {experiment_id[:8]}...")
-            
-            # Run experiment simulation
-            print("Running experiment simulation...")
-            result = ab_framework.run_experiment(experiment_id, duration_days=7)
-            
-            # Display results
-            print(f"\n{Colors.BOLD}A/B Test Results:{Colors.ENDC}")
-            print(f"Control CTR:     {result.control_mean:.4f}")
-            print(f"Treatment CTR:   {result.treatment_mean:.4f}")
-            print(f"Lift:           {result.lift_percentage:.1f}%")
-            print(f"P-value:        {result.p_value:.6f}")
-            print(f"Effect size:    {result.effect_size:.3f}")
-            print(f"Statistical power: {result.statistical_power:.3f}")
-            
-            if result.is_significant:
-                print_success("Result is statistically significant!")
-            else:
-                print_warning("Result is not statistically significant")
-            
-            print(f"\nRecommendation: {result.recommendation}")
-            
-        except Exception as e:
-            print_error(f"A/B testing demo failed: {e}")
-            print_info("This feature requires the full system to be running")
     
     async def demo_metrics_and_monitoring(self):
         """Demonstrate metrics and monitoring"""

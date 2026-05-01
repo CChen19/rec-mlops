@@ -23,9 +23,6 @@ services:
       - KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
       - ALLOW_PLAINTEXT_LISTENER=yes
-    volumes:
-      - kafka_data:/bitnami/kafka
-
   postgres:
     image: postgres:15
     environment:
@@ -40,7 +37,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6550:6379"
     volumes:
       - redis_data:/data
 
@@ -79,68 +76,25 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - grafana_data:/var/lib/grafana
 
-  spark-master:
-    image: bitnamilegacy/spark:3.4.1
-    environment:
-      - SPARK_MODE=master
-      - SPARK_MASTER_PORT=7077
-      - SPARK_MASTER_WEBUI_PORT=8080
-    ports:
-      - "8080:8080"
-      - "7077:7077"
-    volumes:
-      - .:/app  # Mount the repository root inside the container at /app
-      - ./data:/data
-
-  spark-worker:
-    image: bitnamilegacy/spark:3.4.1
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2G
-      - SPARK_WORKER_CORES=2
-    depends_on:
-      - spark-master
-    volumes:
-      - .:/app  # Mount the repository root inside the container at /app
-      - ./data:/data
-  
-  prefect:
-    image: prefecthq/prefect:2-latest  # Use 3-latest if your requirements.txt supports it
-    ports:
-      - "4200:4200"
-    command: >
-      sh -c "
-        prefect server start --host 0.0.0.0 --port 4200
-      "
-    environment:
-      - PREFECT_SERVER_API_HOST=0.0.0.0
-      - PREFECT_SERVER_API_PORT=4200
-      - PREFECT_UI_URL=http://localhost:4200/api
-      - PREFECT_API_URL=http://localhost:4200/api
-    volumes:
-      - prefect_data:/root/.prefect
-    restart: always
-
   locust-master:
     image: python:3.11-slim
     ports:
-      - "8089:8089"  # Locust web UI
+      - "8190:8089"  # Locust web UI
     environment:
       - LOCUST_MASTER=true
     depends_on:
-      - spark-master  # Ensure API is running
+      - kafka
     volumes:
       - .:/app
     working_dir: /app
     command: >
       bash -c "
         pip install locust requests &&
-        locust -f tests/locustfile.py 
-          --master 
-          --host=http://spark-master:8000 
-          --web 
-          --bind=0.0.0.0 
+        locust -f tests/locustfile.py
+          --master
+          --host=http://host.docker.internal:8000
+          --web
+          --bind=0.0.0.0
           --port=8089
       "
     networks:
@@ -150,5 +104,3 @@ volumes:
   postgres_data:
   redis_data:
   grafana_data:
-  prefect_data:
-  kafka_data:

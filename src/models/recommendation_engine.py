@@ -10,8 +10,6 @@ import mlflow
 import numpy as np
 import pandas as pd
 import structlog
-from delta import configure_spark_with_delta_pip  # <--- Key fix: import the configuration helper
-from pyspark.sql import SparkSession
 from sklearn.decomposition import NMF, TruncatedSVD
 from sklearn.preprocessing import MinMaxScaler
 
@@ -20,6 +18,7 @@ from ..utils.metrics import calculate_coverage, calculate_hit_rate, calculate_ma
 
 def load_kafka_producer():
     from ..streaming.kafka_producer import KafkaProducer
+
     return KafkaProducer
 
 
@@ -39,22 +38,6 @@ class RecommendationEngine:
         self.user_features = None
         self.feature_scaler = MinMaxScaler()
         self.kafka_producer = None
-
-        # ---------------------------------------------------------
-        # Core fix: configure Spark so the container can use Delta Lake
-        # ---------------------------------------------------------
-        builder = (
-            SparkSession.builder.appName(config["streaming"]["spark"]["app_name"])
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
-            .config(
-                "spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog"
-            )
-            .config("spark.jars.ivy", "/tmp/.ivy2")
-        )  # <--- Key fix: point Ivy to a writable cache directory
-
-        # Automatically configure the JAR dependencies
-        self.spark = configure_spark_with_delta_pip(builder).getOrCreate()
-        # ---------------------------------------------------------
 
         # MLflow setup
         mlflow.set_tracking_uri(config["mlflow"]["tracking_uri"])
@@ -110,18 +93,19 @@ class RecommendationEngine:
             return self._train_svd_model()
 
     def _train_svd_model(self) -> TruncatedSVD:
-        """Train SVD model (Fallback)"""
-        with mlflow.start_run(run_name="svd_training_fallback"):
+        """Train SVD model (Fallback) and register as Production."""
+        with mlflow.start_run(run_name="svd_training_fallback") as run:
             params = self.config["models"].get("svd", {})
-            n_components = params.get("factors", 10)
-            svd = TruncatedSVD(n_components=n_components, random_state=42)
             sample_matrix = np.random.rand(20, 50)
+            n_components = min(params.get("factors", 10), sample_matrix.shape[1] - 1)
+            svd = TruncatedSVD(n_components=n_components, random_state=42)
             start = time.time()
             svd.fit(sample_matrix)
             duration_ms = (time.time() - start) * 1000
             mlflow.log_params(params)
             mlflow.log_metric("training_time_ms", duration_ms)
             mlflow.sklearn.log_model(svd, "svd_model")
+            self._promote_to_production(run.info.run_id, "svd_model", "Recommendation_SVD")
             return svd
 
     def _load_or_train_nmf(self) -> NMF:
@@ -140,43 +124,47 @@ class RecommendationEngine:
             return self._train_nmf_model()
 
     def _train_nmf_model(self) -> NMF:
-        """Train NMF model (Fallback)"""
-        with mlflow.start_run(run_name="nmf_training_fallback"):
+        """Train NMF model (Fallback) and register as Production."""
+        with mlflow.start_run(run_name="nmf_training_fallback") as run:
             params = self.config["models"].get("nmf", {})
-            n_components = params.get("factors", 10)
+            sample_matrix = np.abs(np.random.rand(20, 50))
+            n_components = min(params.get("factors", 10), sample_matrix.shape[1])
             max_iter = params.get("max_iter", 50)
             nmf = NMF(n_components=n_components, init="random", random_state=42, max_iter=max_iter)
-            sample_matrix = np.abs(np.random.rand(20, 50))
             start = time.time()
             nmf.fit(sample_matrix)
             duration_ms = (time.time() - start) * 1000
             mlflow.log_params(params)
             mlflow.log_metric("training_time_ms", duration_ms)
             mlflow.sklearn.log_model(nmf, "nmf_model")
+            self._promote_to_production(run.info.run_id, "nmf_model", "Recommendation_NMF")
             return nmf
 
-    async def _load_interaction_data(self):
-        """Load user-item interaction data from Delta Lake"""
+    def _promote_to_production(self, run_id: str, artifact_path: str, model_name: str) -> None:
+        """Register a run artifact as the Production version in the MLflow Model Registry."""
         try:
-            # Read from Delta Lake table
-            # Use absolute path that matches init script
-            table_path = "/tmp/delta-tables/interactions"
-            interactions_df = self.spark.read.format("delta").load(table_path)
-
-            interactions_pd = interactions_df.toPandas()
-
-            # Deduplicate
-            interactions_pd = interactions_pd.drop_duplicates(
-                subset=["user_id", "item_id"], keep="last"
+            client = mlflow.tracking.MlflowClient()
+            model_uri = f"runs:/{run_id}/{artifact_path}"
+            mv = mlflow.register_model(model_uri, model_name)
+            client.transition_model_version_stage(
+                name=model_name,
+                version=mv.version,
+                stage="Production",
+                archive_existing_versions=True,
             )
+            logger.info(f"Registered {model_name} v{mv.version} as Production")
+        except Exception as e:
+            logger.warning(f"Could not register {model_name} in MLflow Registry: {e}")
 
-            # Create user-item matrix
-            matrix = interactions_pd.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
+    async def _load_interaction_data(self):
+        """Load user-item interaction data from CSV"""
+        try:
+            df = pd.read_csv("data/sample_interactions.csv")
+            df = df.drop_duplicates(subset=["user_id", "item_id"], keep="last")
+            matrix = df.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
             self.user_item_matrix = matrix.values
             self.last_stats_refresh = time.time()
-
             logger.info(f"Loaded interaction matrix: {self.user_item_matrix.shape}")
-
         except Exception as e:
             logger.warning(f"Could not load interaction data: {e}")
             self._create_sample_data()
@@ -198,7 +186,9 @@ class RecommendationEngine:
             subset=["user_id", "item_id"], keep="last"
         )
 
-        matrix = interactions_df.pivot(index="user_id", columns="item_id", values="rating").fillna(0)
+        matrix = interactions_df.pivot(index="user_id", columns="item_id", values="rating").fillna(
+            0
+        )
         self.user_item_matrix = matrix.values
         self.last_stats_refresh = time.time()
         logger.info("Created sample interaction matrix for demonstration")

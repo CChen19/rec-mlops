@@ -99,7 +99,9 @@ class CacheManager:
             return None
 
         try:
-            return redis_module.Redis(host=self.host, port=self.port, db=self.db, password=self.password)
+            return redis_module.Redis(
+                host=self.host, port=self.port, db=self.db, password=self.password
+            )
         except Exception as exc:  # pragma: no cover
             logger.warning("Falling back to in-memory cache: %s", exc)
             return None

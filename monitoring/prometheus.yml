@@ -12,7 +12,7 @@ scrape_configs:
   # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
   - job_name: 'recommendation-api'
     static_configs:
-      - targets: ['spark-master:8000']
+      - targets: ['host.docker.internal:8000']
     metrics_path: '/metrics'
     scrape_interval: 5s
     scrape_timeout: 5s

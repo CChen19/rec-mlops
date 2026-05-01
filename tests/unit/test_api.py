@@ -136,7 +136,6 @@ class TestRecommendationAPI:
             patch("src.api.recommendation_api.recommendation_engine") as mock_engine,
             patch("src.api.recommendation_api.cache_manager") as mock_cache,
         ):
-
             mock_cache.get.return_value = None
             mock_engine.get_recommendations = AsyncMock(
                 return_value=[{"item_id": 1, "score": 0.9, "algorithm": "hybrid"}]
